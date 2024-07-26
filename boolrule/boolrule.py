@@ -19,6 +19,7 @@ from pyparsing import (
     removeQuotes,
     Suppress,
 )
+import re
 
 
 class SubstituteVal(object):
@@ -33,9 +34,7 @@ class SubstituteVal(object):
     def get_val(self, context):
         # type: (Any) -> Any
         if not context:
-            raise MissingVariableException(
-                'context missing or empty'
-            )
+            raise MissingVariableException("context missing or empty")
 
         val = context
 
@@ -45,18 +44,18 @@ class SubstituteVal(object):
 
         except KeyError:
             raise MissingVariableException(
-                'no value supplied for {}'.format(self._path)
+                "no value supplied for {}".format(self._path)
             )
 
         return val
 
     def __repr__(self):
         # type: () -> str
-        return 'SubstituteVal(%s)' % self._path
+        return "SubstituteVal(%s)" % self._path
 
 
 # Grammar definition
-pathDelimiter = '.'
+pathDelimiter = "."
 identifier = Word(alphas, alphanums + "_")
 propertyPath = delimitedList(identifier, pathDelimiter, combine=True)
 
@@ -64,49 +63,44 @@ and_ = Keyword("and", caseless=True)
 or_ = Keyword("or", caseless=True)
 in_ = Keyword("in", caseless=True)
 
-lparen = Suppress('(')
-rparen = Suppress(')')
+lparen = Suppress("(")
+rparen = Suppress(")")
 
 binaryOp = oneOf(
     "= == != < > >= <= eq ne lt le gt ge in notin is isnot "
-    "≠ ≤ ≥ ∈ ∉ ⊆ ⊇ ∩ not∩", caseless=True
-)('operator')
+    "≠ ≤ ≥ ∈ ∉ ⊆ ⊇ ∩ not∩ startswith endswith contains rematch =~",
+    caseless=True,
+)("operator")
 
 E = CaselessLiteral("E")
 numberSign = Word("+-", exact=1)
 realNumber = Combine(
-    Optional(numberSign) + (
-        Word(nums) + "." + Optional(Word(nums))
-        | ("." + Word(nums))
-    ) + Optional(E + Optional(numberSign) + Word(nums))
+    Optional(numberSign)
+    + (Word(nums) + "." + Optional(Word(nums)) | ("." + Word(nums)))
+    + Optional(E + Optional(numberSign) + Word(nums))
 )
 
 integer = Combine(
-    Optional(numberSign) + Word(nums) + Optional(
-        E + Optional("+") + Word(nums)
-    )
+    Optional(numberSign) + Word(nums) + Optional(E + Optional("+") + Word(nums))
 )
 
 str_ = quotedString.addParseAction(removeQuotes)
-bool_ = oneOf('true false', caseless=True)
-none_ = CaselessLiteral('none')
+bool_ = oneOf("true false", caseless=True)
+none_ = CaselessLiteral("none")
 
 simpleVals = (
     realNumber.setParseAction(lambda toks: float(toks[0]))
     | integer.setParseAction(lambda toks: int(toks[0]))
     | str_
-    | bool_.setParseAction(lambda toks: toks[0] == 'true')
+    | bool_.setParseAction(lambda toks: toks[0] == "true")
     | none_.setParseAction(lambda toks: [None])  # see pyparsing bug 63
     | propertyPath.setParseAction(lambda toks: SubstituteVal(toks))
 )  # need to add support for alg expressions
 
-propertyVal = (
-    simpleVals
-    | (lparen + Group(delimitedList(simpleVals)) + rparen)
-)
+propertyVal = simpleVals | (lparen + Group(delimitedList(simpleVals)) + rparen)
 boolExpression = Forward()
 boolCondition = Group(
-    (Group(propertyVal)('lval') + binaryOp + Group(propertyVal)('rval'))
+    (Group(propertyVal)("lval") + binaryOp + Group(propertyVal)("rval"))
     | (lparen + boolExpression + rparen)
 )
 boolExpression << boolCondition + ZeroOrMore((and_ | or_) + boolExpression)
@@ -150,7 +144,7 @@ class BoolRule(object):
 
     def _is_match_all(self):
         # type: () -> bool
-        return True if self._query == '*' else False
+        return True if self._query == "*" else False
 
     def _compile(self):
         # type: () -> None
@@ -160,9 +154,7 @@ class BoolRule(object):
             if self._is_match_all():
                 return
 
-            self._tokens = (
-                boolExpression.parseString(self._query, True)  # type: ignore
-            )
+            self._tokens = boolExpression.parseString(self._query, True)  # type: ignore
             self._compiled = True
 
     def _expand_val(self, val, context):
@@ -185,9 +177,9 @@ class BoolRule(object):
 
         for token in tokens:
             if not isinstance(token, ParseResults):
-                if token == 'or' and passed:
+                if token == "or" and passed:
                     return True
-                elif token == 'and' and not passed:
+                elif token == "and" and not passed:
                     return False
                 continue
 
@@ -197,42 +189,47 @@ class BoolRule(object):
 
             items = token.asDict()
 
-            operator = items['operator']
-            lval = self._expand_val(items['lval'][0], context)
-            rval = self._expand_val(items['rval'][0], context)
+            operator = items["operator"]
+            lval = self._expand_val(items["lval"][0], context)
+            rval = self._expand_val(items["rval"][0], context)
 
-            if operator in ('=', '==', 'eq'):
+            if operator in ("=", "==", "eq"):
                 passed = lval == rval
-            elif operator in ('!=', 'ne', '≠'):
+            elif operator in ("!=", "ne", "≠"):
                 passed = lval != rval
-            elif operator in ('>', 'gt'):
+            elif operator in (">", "gt"):
                 passed = lval > rval
-            elif operator in ('>=', 'ge', '≥'):
+            elif operator in (">=", "ge", "≥"):
                 passed = lval >= rval
-            elif operator in ('<', 'lt'):
+            elif operator in ("<", "lt"):
                 passed = lval < rval
-            elif operator in ('<=', 'le', '≤'):
+            elif operator in ("<=", "le", "≤"):
                 passed = lval <= rval
-            elif operator in ('in', '∈'):
+            elif operator in ("in", "∈"):
                 passed = lval in rval
-            elif operator in ('notin', '∉'):
+            elif operator in ("notin", "∉"):
                 passed = lval not in rval
-            elif operator == 'is':
+            elif operator == "is":
                 passed = lval is rval
-            elif operator == 'isnot':
+            elif operator == "isnot":
                 passed = lval is not rval
-            elif operator == '⊆':
+            elif operator == "⊆":
                 passed = all((False for x in lval if x not in rval))
-            elif operator == '⊇':
+            elif operator == "⊇":
                 passed = all((False for x in rval if x not in lval))
-            elif operator == '∩':
+            elif operator == "∩":
                 passed = any((True for x in lval if x in rval))
-            elif operator == 'not∩':
+            elif operator == "not∩":
                 passed = not any((True for x in lval if x in rval))
+            elif operator == "startswith":
+                passed = lval.startswith(rval)
+            elif operator == "endswith":
+                passed = lval.endswith(rval)
+            elif operator in ("rematch", "=~"):
+                compiled_pattern = re.compile(rval)
+                passed = bool(compiled_pattern.search(lval))
             else:
-                raise UnknownOperatorException(
-                    "Unknown operator '{}'".format(operator)
-                )
+                raise UnknownOperatorException("Unknown operator '{}'".format(operator))
 
         return passed
 
@@ -242,6 +239,7 @@ class MissingVariableException(Exception):
     Raised when an expression contains a property path that's not supplied in
     the context.
     """
+
     pass
 
 
@@ -253,4 +251,5 @@ class UnknownOperatorException(Exception):
     a token by pyparsing, but it's useful to have this hanging around for when
     additional operators are being added.
     """
+
     pass
