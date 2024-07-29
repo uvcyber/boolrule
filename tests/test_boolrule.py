@@ -78,7 +78,7 @@ def test_nested_logical_combinations_and_error(s, expected):
 @pytest.mark.parametrize(
     "s,context,expected",
     [
-        ('foo = "bar" AND baz > 10', {"foo": "bar", "baz": 20}, True),
+        ('_foo = "bar" AND baz > 10', {"_foo": "bar", "baz": 20}, True),
         ('foo = "bar" AND baz > 10', {"foo": "bar", "baz": 9}, False),
         ('foo = "bar" AND ("a" = "b" OR baz > 10)', {"foo": "bar", "baz": 11}, True),
         ('foo.bar = "bar"', {"foo": {"bar": "bar"}}, True),
