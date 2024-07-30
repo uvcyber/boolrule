@@ -56,7 +56,7 @@ class SubstituteVal(object):
 
 # Grammar definition
 pathDelimiter = "."
-identifier = Word(alphas, alphanums + "_")
+identifier = Word(alphas + "_", alphanums + "_-")
 propertyPath = delimitedList(identifier, pathDelimiter, combine=True)
 
 and_ = Keyword("and", caseless=True)
